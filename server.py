@@ -380,6 +380,208 @@ def list_folder_contents(folder_id: str = "root", max_results: int = 50) -> str:
         return json.dumps({"error": str(e)})
 
 
+@mcp.tool()
+def list_shared_with_me(max_results: int = 25) -> str:
+    """
+    List files that others have shared with you.
+    
+    Args:
+        max_results: Maximum number of results to return (default: 25, max: 100)
+    
+    Returns:
+        JSON array of shared files with id, name, mimeType, owner, and sharedTime
+    """
+    try:
+        service = get_drive_service()
+        
+        # Cap results at 100
+        max_results = min(max_results, 100)
+        
+        # Query for files shared with me
+        query = "sharedWithMe = true and trashed = false"
+        
+        results = service.files().list(
+            q=query,
+            orderBy='sharedWithMeTime desc',
+            pageSize=max_results,
+            fields="files(id, name, mimeType, modifiedTime, sharedWithMeTime, webViewLink, owners, sharingUser)"
+        ).execute()
+        
+        items = results.get('files', [])
+        
+        if not items:
+            return json.dumps({
+                "message": "No files have been shared with you",
+                "files": []
+            })
+        
+        # Format results
+        output = []
+        for item in items:
+            owners = item.get('owners', [])
+            sharing_user = item.get('sharingUser', {})
+            
+            output.append({
+                'id': item.get('id'),
+                'name': item.get('name'),
+                'mimeType': item.get('mimeType'),
+                'sharedWithMeTime': item.get('sharedWithMeTime'),
+                'modifiedTime': item.get('modifiedTime'),
+                'webViewLink': item.get('webViewLink'),
+                'owner': owners[0].get('displayName', owners[0].get('emailAddress', 'Unknown')) if owners else 'Unknown',
+                'sharedBy': sharing_user.get('displayName', sharing_user.get('emailAddress', 'Unknown')) if sharing_user else None,
+            })
+        
+        return json.dumps({
+            "count": len(output),
+            "files": output
+        }, indent=2)
+        
+    except HttpError as error:
+        return json.dumps({"error": str(error)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def list_starred_files(max_results: int = 25) -> str:
+    """
+    List files you have starred in Google Drive.
+    
+    Args:
+        max_results: Maximum number of results to return (default: 25, max: 100)
+    
+    Returns:
+        JSON array of starred files with id, name, mimeType, and modifiedTime
+    """
+    try:
+        service = get_drive_service()
+        
+        # Cap results at 100
+        max_results = min(max_results, 100)
+        
+        # Query for starred files
+        query = "starred = true and trashed = false"
+        
+        results = service.files().list(
+            q=query,
+            orderBy='modifiedTime desc',
+            pageSize=max_results,
+            fields="files(id, name, mimeType, modifiedTime, webViewLink)"
+        ).execute()
+        
+        items = results.get('files', [])
+        
+        if not items:
+            return json.dumps({
+                "message": "You have no starred files",
+                "files": []
+            })
+        
+        # Format results
+        output = []
+        for item in items:
+            output.append({
+                'id': item.get('id'),
+                'name': item.get('name'),
+                'mimeType': item.get('mimeType'),
+                'modifiedTime': item.get('modifiedTime'),
+                'webViewLink': item.get('webViewLink'),
+            })
+        
+        return json.dumps({
+            "count": len(output),
+            "files": output
+        }, indent=2)
+        
+    except HttpError as error:
+        return json.dumps({"error": str(error)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@mcp.tool()
+def get_file_comments(file_id: str, max_results: int = 50) -> str:
+    """
+    Get comments and discussions on a file.
+    
+    Args:
+        file_id: The Google Drive file ID
+        max_results: Maximum number of comments to return (default: 50, max: 100)
+    
+    Returns:
+        JSON array of comments with author, content, timestamp, and replies
+    """
+    try:
+        service = get_drive_service()
+        
+        # Cap results at 100
+        max_results = min(max_results, 100)
+        
+        # First get file name for context
+        file_metadata = service.files().get(
+            fileId=file_id,
+            fields='name'
+        ).execute()
+        file_name = file_metadata.get('name', 'Unknown')
+        
+        # Get comments
+        results = service.comments().list(
+            fileId=file_id,
+            pageSize=max_results,
+            fields="comments(id, content, author, createdTime, modifiedTime, resolved, replies)"
+        ).execute()
+        
+        comments = results.get('comments', [])
+        
+        if not comments:
+            return json.dumps({
+                "file_name": file_name,
+                "file_id": file_id,
+                "message": "No comments on this file",
+                "comments": []
+            })
+        
+        # Format results
+        output = []
+        for comment in comments:
+            author = comment.get('author', {})
+            replies_data = comment.get('replies', [])
+            
+            # Format replies
+            replies = []
+            for reply in replies_data:
+                reply_author = reply.get('author', {})
+                replies.append({
+                    'author': reply_author.get('displayName', 'Unknown'),
+                    'content': reply.get('content', ''),
+                    'createdTime': reply.get('createdTime'),
+                })
+            
+            output.append({
+                'id': comment.get('id'),
+                'author': author.get('displayName', 'Unknown'),
+                'content': comment.get('content', ''),
+                'createdTime': comment.get('createdTime'),
+                'modifiedTime': comment.get('modifiedTime'),
+                'resolved': comment.get('resolved', False),
+                'replyCount': len(replies),
+                'replies': replies,
+            })
+        
+        return json.dumps({
+            "file_name": file_name,
+            "file_id": file_id,
+            "comment_count": len(output),
+            "comments": output
+        }, indent=2)
+        
+    except HttpError as error:
+        return json.dumps({"error": str(error)})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
 if __name__ == "__main__":
     # Run the MCP server
     mcp.run()

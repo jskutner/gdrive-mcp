@@ -11,6 +11,9 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that p
 | `get_file_content` | Download and return file content as text |
 | `get_file_metadata` | Get detailed file information |
 | `list_folder_contents` | Browse folder contents |
+| `list_shared_with_me` | Files others have shared with you |
+| `list_starred_files` | Your starred/important files |
+| `get_file_comments` | Read comments and discussions on a file |
 
 ## Prerequisites
 
